@@ -1,9 +1,21 @@
-from typing import Dict, Tuple, Union
 
-DATA_PATH: str = "data/processed/climate_data.csv"
-ARIMA_ORDER: Tuple[int, int, int] = (1, 1, 1)
+#####################
+#      PATHS        #
+#####################
+DATA_PATH = "../processed/full_climate_data.csv"
+PROCESSED_TRAIN_DATA_PATH = "../processed/train_climate_data.csv"
+PROCESSED_VAL_DATA_PATH = "../processed_/val_climate_data.csv"
+PROCESSED_TEST_DATA_PATH = "../processed/test_climate_data.csv"
+SNIPPET_TRAIN_DATA_PATH = "../processed/snippet_train_climate_data.csv"
+SNIPPET_VAL_DATA_PATH = "../processed/snippet_val_climate_data.csv"
+SNIPPET_TEST_DATA_PATH = "../processed/snippet_test_climate_data.csv"
 
-LSTM_CONFIG: Dict[str, Union[int, float]] = {
+#####################
+#      CONFIGS      #
+#####################
+ARIMA_ORDER = (1, 1, 1)
+
+LSTM_CONFIG = {
     "input_dim": 1,
     "hidden_dim": 32,
     "num_layers": 2,
@@ -11,7 +23,7 @@ LSTM_CONFIG: Dict[str, Union[int, float]] = {
     "dropout": 0.1
 }
 
-TRANSFORMER_CONFIG: Dict[str, Union[int, float]] = {
+TRANSFORMER_CONFIG = {
     "input_size": 1,
     "model_dim": 32,
     "num_heads": 4,
@@ -20,7 +32,7 @@ TRANSFORMER_CONFIG: Dict[str, Union[int, float]] = {
     "dropout": 0.1
 }
 
-EXPERIMENT_CONFIG: Dict[str, int] = {
+EXPERIMENT_CONFIG = {
     "num_steps": 10,       # Number of prediction steps
     "log_interval": 1      # Interval of epochs to log metrics
 }
