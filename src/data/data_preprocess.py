@@ -22,33 +22,16 @@ from config import (
 # Data Loading and Processing
 # --------------------------------------------------------------------
 def process_climate_data(
-    base_path: str,
-    years: List[str],
-    months: List[str],
-    variables: Dict[str, str],
-    lat_min: float,
-    lat_max: float,
-    lon_min: float,
-    lon_max: float
+        base_path: str,
+        years: List[str],
+        months: List[str],
+        variables: Dict[str, str],
+        lat_min: float,
+        lat_max: float,
+        lon_min: float,
+        lon_max: float
 ) -> pd.DataFrame:
-    """
-    Load NetCDF climate data from multiple years and months, filter by latitude and longitude,
-    and convert to a single Pandas DataFrame.
 
-    Parameters:
-        base_path (str): Base path to the raw data directory.
-        years (List[str]): List of years to process.
-        months (List[str]): List of months (e.g. ['01', '02', ...]) to process.
-        variables (Dict[str, str]): Mapping of variable keys to NetCDF file names.
-        lat_min (float): Minimum latitude filter.
-        lat_max (float): Maximum latitude filter.
-        lon_min (float): Minimum longitude filter.
-        lon_max (float): Maximum longitude filter.
-
-    Returns:
-        pd.DataFrame: A long-format DataFrame containing all requested variables,
-                      indexed by time, latitude, and longitude.
-    """
     rows = []
     file_count = 0
 
@@ -85,7 +68,6 @@ def process_climate_data(
                                 print(f"[ERROR] No valid time variable found in {file_path}")
                                 continue
 
-                        # Extract variable values
                         temp_data[var_key] = ds[var_key].values
 
                         # Convert total precipitation from meters to millimeters if units are "m"
@@ -99,12 +81,12 @@ def process_climate_data(
                 else:
                     print(f"[WARNING] File not found: {file_path}")
 
-            # Build rows if we have time, latitude, longitude
+            # Build rows if we have time, latitude, and longitude
             if (
-                temp_data
-                and "time" in temp_data
-                and "latitude" in temp_data
-                and "longitude" in temp_data
+                    temp_data
+                    and "time" in temp_data
+                    and "latitude" in temp_data
+                    and "longitude" in temp_data
             ):
                 time_values = temp_data["time"]
                 for t_idx, time_val in enumerate(time_values):
@@ -113,7 +95,6 @@ def process_climate_data(
                             if lat_min <= lat_val <= lat_max and lon_min <= lon_val <= lon_max:
                                 row = {
                                     "time": time_val,
-                                    "time_idx": t_idx,
                                     "latitude": lat_val,
                                     "longitude": lon_val,
                                     "group_id": f"{lat_val:.1f}_{lon_val:.1f}",
@@ -129,9 +110,37 @@ def process_climate_data(
     if rows:
         data = pd.DataFrame(rows)
         print(f"[INFO] Data processing completed. Processed {file_count} NetCDF files.")
-        # Sort by time and reset index
-        data = data.sort_values(by="time").reset_index(drop=True)
-        return data
+        data['time'] = pd.to_datetime(data['time'])
+        data = data.sort_values(by=['group_id', 'time']).reset_index(drop=True)
+
+        data['norm_time'] = data['time'].dt.normalize()
+
+        full_date_range = pd.date_range(start=data['norm_time'].min(), end=data['norm_time'].max(), freq='D')
+        print(
+            f"[INFO] Full date range from {full_date_range[0]} to {full_date_range[-1]}, total {len(full_date_range)} days")
+
+        filled_groups = []
+        for group, subdf in data.groupby('group_id'):
+            group_lat = subdf['latitude'].iloc[0]
+            group_lon = subdf['longitude'].iloc[0]
+
+            subdf = subdf.set_index('norm_time')
+            subdf = subdf.reindex(full_date_range)
+
+            subdf['group_id'] = group
+            subdf['latitude'] = group_lat
+            subdf['longitude'] = group_lon
+            filled_groups.append(subdf.reset_index().rename(columns={'index': 'norm_time'}))
+        data_full = pd.concat(filled_groups, ignore_index=True)
+
+        date_to_idx = {d: i for i, d in enumerate(full_date_range)}
+        data_full['time_idx'] = data_full['norm_time'].map(date_to_idx)
+
+        data_full['time'] = data_full['norm_time']
+        data_full.drop(columns=['norm_time'], inplace=True)
+
+        print(f"[INFO] Time Index Range: {data_full['time_idx'].min()} to {data_full['time_idx'].max()}")
+        return data_full
     else:
         print("[WARNING] No data processed. Check input parameters.")
         return pd.DataFrame()
@@ -141,37 +150,16 @@ def process_climate_data(
 # Preprocessing Utilities
 # --------------------------------------------------------------------
 def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Remove duplicate rows from the DataFrame.
-
-    Parameters:
-        df (pd.DataFrame): The input DataFrame.
-
-    Returns:
-        pd.DataFrame: DataFrame with duplicates removed.
-    """
     return df.drop_duplicates()
 
 
 def fill_missing_values(df: pd.DataFrame, method: str = "ffill") -> pd.DataFrame:
-    """
-    Fill missing values in the DataFrame using a specified method.
-
-    Parameters:
-        df (pd.DataFrame): The input DataFrame.
-        method (str): The method to fill missing values. Options are 'ffill', 'bfill', 'mean', or 'median'.
-
-    Returns:
-        pd.DataFrame: DataFrame with missing values filled.
-    """
     if method in ["ffill", "bfill"]:
         df = df.fillna(method=method)
     elif method == "mean":
-        # Only fill numeric columns using their mean values
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].mean())
     elif method == "median":
-        # Only fill numeric columns using their median values
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].median())
     else:
@@ -180,17 +168,6 @@ def fill_missing_values(df: pd.DataFrame, method: str = "ffill") -> pd.DataFrame
 
 
 def remove_outliers(df: pd.DataFrame, columns: List[str], threshold: float = 1.5) -> pd.DataFrame:
-    """
-    Remove outliers from specified columns using the IQR method.
-
-    Parameters:
-        df (pd.DataFrame): The input DataFrame.
-        columns (List[str]): List of column names to check for outliers.
-        threshold (float): IQR multiplier to define the outlier bounds.
-
-    Returns:
-        pd.DataFrame: DataFrame with outliers removed.
-    """
     for col in columns:
         if col in df.columns:
             Q1 = df[col].quantile(0.25)
@@ -203,17 +180,6 @@ def remove_outliers(df: pd.DataFrame, columns: List[str], threshold: float = 1.5
 
 
 def scale_features(df: pd.DataFrame, columns: List[str], method: str = "standard") -> Tuple[pd.DataFrame, object]:
-    """
-    Scale specified features using either StandardScaler or MinMaxScaler.
-
-    Parameters:
-        df (pd.DataFrame): The input DataFrame.
-        columns (List[str]): List of column names to scale.
-        method (str): Scaling method to use. 'standard' for StandardScaler or 'minmax' for MinMaxScaler.
-
-    Returns:
-        Tuple[pd.DataFrame, object]: A tuple containing the scaled DataFrame and the scaler object used.
-    """
     if not columns:
         return df, None
 
@@ -229,82 +195,24 @@ def scale_features(df: pd.DataFrame, columns: List[str], method: str = "standard
 
 
 def train_val_test_split(
-    df: pd.DataFrame,
-    train_ratio: float,
-    val_ratio: float
+        df: pd.DataFrame,
+        train_ratio: float,
+        val_ratio: float
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Split the DataFrame into train, validation, and test sets.
+    unique_time_idx = sorted(df['time_idx'].unique())
+    total_days = len(unique_time_idx)
+    train_count = int(total_days * train_ratio)
+    val_count = int(total_days * val_ratio)
 
-    Parameters:
-        df (pd.DataFrame): The input DataFrame.
-        train_ratio (float): Fraction of data to be used for training.
-        val_ratio (float): Fraction of data to be used for validation (after training split).
+    train_days = set(unique_time_idx[:train_count])
+    val_days = set(unique_time_idx[train_count:train_count + val_count])
+    test_days = set(unique_time_idx[train_count + val_count:])
 
-    Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: (train_df, val_df, test_df)
-    """
-    if train_ratio + val_ratio >= 1.0:
-        raise ValueError("train_ratio + val_ratio must be less than 1.0")
-
-    total_len = len(df)
-    train_size = int(total_len * train_ratio)
-    val_size = int(total_len * val_ratio)
-
-    train_df = df.iloc[:train_size]
-    val_df = df.iloc[train_size : train_size + val_size]
-    test_df = df.iloc[train_size + val_size :]
+    train_df = df[df['time_idx'].isin(train_days)].copy()
+    val_df = df[df['time_idx'].isin(val_days)].copy()
+    test_df = df[df['time_idx'].isin(test_days)].copy()
 
     return train_df, val_df, test_df
-
-def convert_group_id_to_numeric(df: pd.DataFrame, col: str = 'group_id') -> pd.DataFrame:
-    """
-    Convert a DataFrame column containing group_id strings (formatted as 'latitude_longitude')
-    into two numeric columns: 'latitude_numeric' and 'longitude_numeric'.
-    If the conversion fails for any value, set the corresponding numeric values to NaN and print an error message.
-
-    Parameters:
-        df (pd.DataFrame): The input DataFrame.
-        col (str): The column name containing group_id strings. Default is 'group_id'.
-
-    Returns:
-        pd.DataFrame: The DataFrame with two new columns: 'latitude_numeric' and 'longitude_numeric'.
-    """
-    latitudes: list = []
-    longitudes: list = []
-
-    for value in df[col]:
-        # Check if value is a string
-        if not isinstance(value, str):
-            print(f"[DEBUG] group_id value is not a string: {value}")
-            latitudes.append(float('nan'))
-            longitudes.append(float('nan'))
-            continue
-
-        # Debug: if the value is unusually long
-        if len(value) > 20:
-            print(f"[DEBUG] group_id value '{value}' is unusually long (length {len(value)}).")
-
-        parts = value.split('_')
-        if len(parts) < 2:
-            print(f"[WARNING] Unexpected group_id format: {value}")
-            latitudes.append(float('nan'))
-            longitudes.append(float('nan'))
-        elif len(parts) > 2:
-            print(f"[DEBUG] group_id value '{value}' has more than 2 parts. Using first two parts.")
-            parts = parts[:2]
-
-        try:
-            latitudes.append(float(parts[0]))
-            longitudes.append(float(parts[1]))
-        except Exception as e:
-            print(f"[ERROR] Failed to convert group_id '{value}' to numeric: {e}")
-            latitudes.append(float('nan'))
-            longitudes.append(float('nan'))
-
-    df['latitude_numeric'] = latitudes
-    df['longitude_numeric'] = longitudes
-    return df
 
 
 # --------------------------------------------------------------------
@@ -344,9 +252,6 @@ def main_pipeline() -> None:
     print(f"[INFO] Loaded data head: {df.head()}")
     print("-------------------------\n")
 
-    df = convert_group_id_to_numeric(df, col='group_id')
-
-
     print(f"[INFO] Removing duplicates from the dataset...")
     df = remove_duplicates(df)
 
@@ -359,10 +264,12 @@ def main_pipeline() -> None:
     print(f"[INFO] Scaling features in the dataset...")
     df, _ = scale_features(df, columns=["t2m", "tp", "d2m"], method="standard")
 
+    df = df.sort_values(by='time').reset_index(drop=True)
+    print(f"[INFO] Time Index Range: {df['time_idx'].min()} to {df['time_idx'].max()}")
+
     print(f"[INFO] Splitting dataset into train, validation, and test sets...")
     train_df, val_df, test_df = train_val_test_split(df, TRAIN_RATIO, VAL_RATIO)
 
-    # 7. Save results to CSV files
     df.to_csv(PROCESSED_DATA_PATH, index=False)
     train_df.to_csv(TRAIN_DATA_PATH, index=False)
     val_df.to_csv(VAL_DATA_PATH, index=False)
@@ -375,8 +282,5 @@ def main_pipeline() -> None:
     print("[INFO] Preprocessing pipeline completed successfully.")
 
 
-# --------------------------------------------------------------------
-# Entry Point
-# --------------------------------------------------------------------
 if __name__ == "__main__":
     main_pipeline()
