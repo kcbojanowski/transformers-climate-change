@@ -4,7 +4,7 @@ import numpy as np
 import xarray as xr
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from typing import List, Dict, Tuple
-from config import (
+from ..config import (
     RAW_PATH,
     PROCESSED_DATA_PATH,
     TRAIN_DATA_PATH,
