@@ -1,9 +1,9 @@
 import pandas as pd
-from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.arima.model import ARIMA, ARIMAResults
 from typing import Tuple
 
 
-def train_arima_model(series: pd.Series, order: Tuple[int, int, int] = (1, 1, 1)) -> ARIMA:
+def train_arima_model(series: pd.Series, order: Tuple[int, int, int] = (1, 1, 1)) -> ARIMAResults:
     """
     Train an ARIMA model on a given time series.
 
@@ -12,19 +12,19 @@ def train_arima_model(series: pd.Series, order: Tuple[int, int, int] = (1, 1, 1)
         order (tuple): The (p, d, q) order of the ARIMA model.
 
     Returns:
-        ARIMA: The fitted ARIMA model.
+        ARIMAResults: The fitted ARIMA model.
     """
     model = ARIMA(series, order=order)
     model_fit = model.fit()
     return model_fit
 
 
-def forecast_arima(model_fit: ARIMA, steps: int = 10) -> pd.Series:
+def forecast_arima(model_fit: ARIMAResults, steps: int = 10) -> pd.Series:
     """
     Forecast future values using the trained ARIMA model.
 
     Parameters:
-        model_fit (ARIMA): The fitted ARIMA model.
+        model_fit (ARIMAResults): The fitted ARIMA model.
         steps (int): Number of time steps to forecast.
 
     Returns:

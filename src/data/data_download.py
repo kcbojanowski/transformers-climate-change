@@ -1,5 +1,5 @@
 import cdsapi
-from ..config import DATASET, BASE_REQUEST_PARAMS, OUTPUT_FILENAME_PATTERN, YEARS, MONTHS
+from src.config import DATASET, BASE_REQUEST_PARAMS, OUTPUT_FILENAME_PATTERN, YEARS, MONTHS
 
 
 def download_data(year: str, month: str) -> None:

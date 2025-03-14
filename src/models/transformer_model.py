@@ -4,16 +4,9 @@ import math
 from typing import Tuple
 
 
+# Custom Transformer Model
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
-        """
-        Implements positional encoding as described in "Attention is All You Need".
-
-        Parameters:
-            d_model (int): The dimension of the model.
-            dropout (float): Dropout rate.
-            max_len (int): Maximum length of sequences.
-        """
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
         pe = torch.zeros(max_len, d_model)
@@ -25,15 +18,6 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Add positional encoding to the input tensor.
-
-        Parameters:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_length, d_model).
-
-        Returns:
-            torch.Tensor: Output tensor with positional encoding added.
-        """
         x = x + self.pe[:, :x.size(1)]
         return self.dropout(x)
 
@@ -41,85 +25,52 @@ class PositionalEncoding(nn.Module):
 class TransformerModel(nn.Module):
     def __init__(self, input_size: int, model_dim: int, num_heads: int, num_layers: int, output_size: int,
                  dropout: float = 0.1):
-        """
-        Transformer-based model for time series forecasting.
-
-        Parameters:
-            input_size (int): Dimension of input features.
-            model_dim (int): Dimension of the model.
-            num_heads (int): Number of attention heads.
-            num_layers (int): Number of transformer encoder layers.
-            output_size (int): Dimension of the output.
-            dropout (float): Dropout probability.
-        """
         super(TransformerModel, self).__init__()
         self.input_linear = nn.Linear(input_size, model_dim)
         self.positional_encoding = PositionalEncoding(model_dim, dropout)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=model_dim, nhead=num_heads, dropout=dropout)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=model_dim, nhead=num_heads, dropout=dropout,
+                                                   batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         self.fc_out = nn.Linear(model_dim, output_size)
 
     def forward(self, src: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass for the Transformer model.
-
-        Parameters:
-            src (torch.Tensor): Input tensor of shape (batch_size, seq_length, input_size).
-
-        Returns:
-            torch.Tensor: Output tensor of shape (batch_size, output_size).
-        """
-        src = self.input_linear(src)  # (batch_size, seq_length, model_dim)
-        src = self.positional_encoding(src)
-        # Permute for transformer: (seq_length, batch_size, model_dim)
-        src = src.permute(1, 0, 2)
-        output = self.transformer_encoder(src)
-        # Use the last time step's output for forecasting
-        output = self.fc_out(output[-1])
+        # src: (batch_size, seq_length, input_size)
+        x = self.input_linear(src)  # (batch_size, seq_length, model_dim)
+        x = self.positional_encoding(x)
+        x = self.transformer_encoder(x)  # (batch_size, seq_length, model_dim)
+        output = self.fc_out(x[:, -1, :])  # (batch_size, output_size)
         return output
 
 
-def train_transformer_model(model: TransformerModel, train_loader, val_loader, num_epochs: int = 10,
-                            lr: float = 1e-3) -> TransformerModel:
-    """
-    Train the Transformer model using MSELoss and Adam optimizer.
-
-    Parameters:
-        model (TransformerModel): The Transformer model.
-        train_loader (DataLoader): DataLoader for training data.
-        val_loader (DataLoader): DataLoader for validation data.
-        num_epochs (int): Number of epochs.
-        lr (float): Learning rate.
-
-    Returns:
-        TransformerModel: The trained model.
-    """
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    for epoch in range(num_epochs):
-        model.train()
-        for batch in train_loader:
-            x, y = batch
-            optimizer.zero_grad()
-            outputs = model(x)
-            loss = criterion(outputs, y)
-            loss.backward()
-            optimizer.step()
-    return model
+# Darts Transformer Wrapper
+try:
+    from darts import TimeSeries
+    from darts.models import TransformerModel as DartsTransformerModel
+except ImportError:
+    DartsTransformerModel = None
 
 
-def forecast_transformer(model: TransformerModel, input_seq: torch.Tensor) -> torch.Tensor:
-    """
-    Generate forecast from the Transformer model for a given input sequence.
+class DartsTransformerWrapper:
+    def __init__(self, config: dict):
+        if DartsTransformerModel is None:
+            raise ImportError("Darts is not installed. Please install it via 'pip install u8darts'")
+        # Filter out parameters that Darts' TransformerModel does not accept
+        filtered_config = {k: v for k, v in config.items() if k not in ['lr', 'verbose']}
+        self.model = DartsTransformerModel(
+            input_chunk_length=filtered_config["input_chunk_length"],
+            output_chunk_length=filtered_config["output_chunk_length"],
+            d_model=filtered_config["d_model"],
+            nhead=filtered_config["nhead"],
+            num_encoder_layers=filtered_config["num_encoder_layers"],
+            num_decoder_layers=filtered_config["num_decoder_layers"],
+            dropout=filtered_config["dropout"],
+            batch_size=filtered_config["batch_size"],
+            n_epochs=filtered_config["n_epochs"],
+            random_state=filtered_config.get("random_state", 42)
+        )
 
-    Parameters:
-        model (TransformerModel): The trained Transformer model.
-        input_seq (torch.Tensor): Input tensor.
+    def fit(self, series: TimeSeries):
+        self.model.fit(series)
 
-    Returns:
-        torch.Tensor: Forecasted output.
-    """
-    model.eval()
-    with torch.no_grad():
-        prediction = model(input_seq)
-    return prediction
+    def predict(self, n: int):
+        return self.model.predict(n)

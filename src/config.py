@@ -28,8 +28,10 @@ BASE_REQUEST_PARAMS = {
 RAW_PATH = "../../data/raw/"
 OUTPUT_FILENAME_PATTERN = RAW_PATH + "climate_data_{year}_{month}.zip"
 
-YEARS = ["2021", "2022", "2023"]
+# YEARS = list(map(str, range(1995, 2025)))
 MONTHS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+YEARS = ["2019", "2020"]
+
 
 #########################################################
 #               Preprocess parameters                   #
@@ -46,7 +48,7 @@ SNIPPET_TRAIN_DATA_PATH = PROCESSED_PATH + "snippet/train_climate_data.csv"
 SNIPPET_VAL_DATA_PATH = PROCESSED_PATH + "snippet/val_climate_data.csv"
 SNIPPET_TEST_DATA_PATH = PROCESSED_PATH + "snippet/test_climate_data.csv"
 
-USE_SNIPPET = True
+USE_SNIPPET = False
 
 if USE_SNIPPET:
     TRAIN_DATA_PATH = SNIPPET_TRAIN_DATA_PATH
@@ -67,6 +69,7 @@ VARIABLES = {
     "d2m": "2m_dewpoint_temperature_0_daily-mean.nc"  # Dewpoint temperature
 }
 
+TARGET_VARIABLES = ["t2m", "tp", "d2m"]
 # Ranges
 # [lat_min, lat_max, lon_min, lon_max]
 AREA = [49.0, 55.0, 14.0, 24.0]
@@ -74,26 +77,30 @@ AREA = [49.0, 55.0, 14.0, 24.0]
 TRAIN_RATIO = 0.7
 VAL_RATIO = 0.2
 
-ARIMA_ORDER = (1, 1, 1)
-
-LSTM_CONFIG = {
-    "input_dim": 1,
-    "hidden_dim": 32,
-    "num_layers": 2,
-    "output_dim": 1,
-    "dropout": 0.1,
-    "num_epochs": 10,
-    "lr": 1e-3,
-}
+ARIMA_ORDER = (2, 1, 2)
 
 TRANSFORMER_CONFIG = {
-    "input_size": 1,
+    "input_size": len(VARIABLES),
     "model_dim": 32,
     "num_heads": 4,
     "num_layers": 2,
-    "output_size": 1,
+    "output_size": len(VARIABLES),
     "dropout": 0.1,
-    "num_epochs": 10,
     "lr": 1e-3,
+    "num_epochs": 20,
 }
 
+DARTS_TRANSFORMER_CONFIG = {
+    "input_chunk_length": 30,
+    "output_chunk_length": 7,
+    "d_model": 32,
+    "nhead": 4,
+    "num_encoder_layers": 2,
+    "num_decoder_layers": 2,
+    "dropout": 0.1,
+    "batch_size": 32,
+    "n_epochs": 20,
+    "lr": 1e-3,
+    "random_state": 42,
+    "verbose": False
+}

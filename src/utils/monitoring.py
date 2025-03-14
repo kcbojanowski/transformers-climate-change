@@ -1,7 +1,6 @@
-# Listing 2: src/utils/monitoring.py
-
 import time
 import psutil
+import logging
 from typing import Any, Dict, Optional, List
 
 try:
@@ -40,14 +39,9 @@ def get_gpu_usage() -> Optional[List[Dict[str, Any]]]:
     else:
         return None
 
-def log_system_metrics() -> Dict[str, Any]:
-    """
-    Collects and returns system metrics: CPU usage, memory usage, and GPU information.
-    """
-    metrics: Dict[str, Any] = {
-        "cpu_usage": get_cpu_usage(),
-        "memory_usage": get_memory_usage(),
-        "gpu_usage": get_gpu_usage(),
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-    }
+def log_system_metrics():
+    cpu = psutil.cpu_percent(interval=1)
+    mem = psutil.virtual_memory().percent
+    metrics = {"cpu": cpu, "memory": mem}
+    logging.info(f"System Metrics: {metrics}")
     return metrics
