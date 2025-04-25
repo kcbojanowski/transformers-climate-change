@@ -1,16 +1,21 @@
 import numpy as np
-from typing import Union
+from sklearn.metrics import r2_score, explained_variance_score
 
-Number = Union[int, float]
 
-def compute_mae(actual: np.ndarray, predicted: np.ndarray) -> float:
-    """
-    Compute Mean Absolute Error (MAE) between actual and predicted values.
-    """
-    return float(np.mean(np.abs(actual - predicted)))
+def evaluate_regression(actual: np.ndarray, predicted: np.ndarray) -> dict:
+    actual = np.array(actual).flatten()
+    predicted = np.array(predicted).flatten()
 
-def compute_rmse(actual: np.ndarray, predicted: np.ndarray) -> float:
-    """
-    Compute Root Mean Squared Error (RMSE) between actual and predicted values.
-    """
-    return float(np.sqrt(np.mean((actual - predicted) ** 2)))
+    mae = np.mean(np.abs(actual - predicted))
+    rmse = np.sqrt(np.mean((actual - predicted) ** 2))
+    mape = np.mean(np.abs((actual - predicted) / (actual + 1e-8))) * 100
+    r2 = r2_score(actual, predicted) if len(actual) > 1 else float('nan')
+    explained_var = explained_variance_score(actual, predicted) if len(actual) > 1 else float('nan')
+
+    return {
+        "MAE": mae,
+        "RMSE": rmse,
+        "MAPE": mape,
+        "R2": r2,
+        "ExplainedVariance": explained_var
+    }

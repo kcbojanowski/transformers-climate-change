@@ -8,11 +8,13 @@ try:
 except ImportError:
     GPUtil = None  # Install it via: pip install gputil
 
+
 def get_cpu_usage() -> float:
     """
     Returns the current CPU usage percentage.
     """
     return psutil.cpu_percent(interval=1)
+
 
 def get_memory_usage() -> float:
     """
@@ -21,27 +23,27 @@ def get_memory_usage() -> float:
     memory = psutil.virtual_memory()
     return memory.percent
 
-def get_gpu_usage() -> Optional[List[Dict[str, Any]]]:
+
+def get_gpu_usage() -> dict[str, Any] | None:
     """
     Returns a list of dictionaries containing GPU information.
     Requires the GPUtil library.
     """
     if GPUtil:
         gpus = GPUtil.getGPUs()
-        return [{
-            "id": gpu.id,
-            "name": gpu.name,
-            "load": gpu.load * 100,
-            "memory_used": gpu.memoryUsed,
-            "memory_total": gpu.memoryTotal,
-            "temperature": gpu.temperature
-        } for gpu in gpus]
+        main_gpu = gpus[0]
+        return {
+            "memory_used": main_gpu.memoryUsed,
+            "memory_total": main_gpu.memoryTotal,
+            "temperature": main_gpu.temperature
+        }
     else:
         return None
+
 
 def log_system_metrics():
     cpu = psutil.cpu_percent(interval=1)
     mem = psutil.virtual_memory().percent
-    metrics = {"cpu": cpu, "memory": mem}
-    logging.info(f"System Metrics: {metrics}")
+    gpu = get_gpu_usage()
+    metrics = {"cpu": cpu, "gpu": gpu, "memory": mem}
     return metrics

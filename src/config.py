@@ -30,7 +30,7 @@ OUTPUT_FILENAME_PATTERN = RAW_PATH + "climate_data_{year}_{month}.zip"
 
 # YEARS = list(map(str, range(1995, 2025)))
 MONTHS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
-YEARS = ["2019", "2020"]
+YEARS = ["2018", "2017"]
 
 
 #########################################################
@@ -69,7 +69,7 @@ VARIABLES = {
     "d2m": "2m_dewpoint_temperature_0_daily-mean.nc"  # Dewpoint temperature
 }
 
-TARGET_VARIABLES = ["t2m", "tp", "d2m"]
+TARGET_VARIABLES = ["t2m"]
 # Ranges
 # [lat_min, lat_max, lon_min, lon_max]
 AREA = [49.0, 55.0, 14.0, 24.0]
@@ -79,15 +79,18 @@ VAL_RATIO = 0.2
 
 ARIMA_ORDER = (2, 1, 2)
 
+SEQUENCE_LENGTH = 100
+FORECAST_HORIZON = 365
+
 TRANSFORMER_CONFIG = {
-    "input_size": len(VARIABLES),
-    "model_dim": 32,
-    "num_heads": 4,
-    "num_layers": 2,
-    "output_size": len(VARIABLES),
+    "input_size": len(TARGET_VARIABLES),
+    "model_dim": 64,
+    "num_heads": 8,
+    "num_layers": 4,
+    "output_size": len(TARGET_VARIABLES),
     "dropout": 0.1,
-    "lr": 1e-3,
-    "num_epochs": 20,
+    "lr": 1e-4,
+    "num_epochs": 50,
 }
 
 DARTS_TRANSFORMER_CONFIG = {
